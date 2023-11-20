@@ -135,6 +135,12 @@ void AABCharacterBase::SetCharacterControlData(const UABCharacterControlData* Ch
 
 void AABCharacterBase::ProcessComboCommand()
 {
+	if (true == GetCharacterMovement()->IsFalling())
+	{
+		UE_LOG(LogABCharacter, Log, TEXT("bPressedJump is %d"), bPressedJump);
+		return;
+	}
+
 	if (CurrentCombo == 0)
 	{
 		ComboActionBegin();
