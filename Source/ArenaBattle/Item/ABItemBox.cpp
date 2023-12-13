@@ -56,14 +56,17 @@ void AABItemBox::PostInitializeComponents()
 	Manager.GetPrimaryAssetIdList(TEXT("ABItemData"), Assets); 
 	ensure(0 < Assets.Num());
 
-	int32 RandomIndex = FMath::RandRange(0, Assets.Num() - 1);
-	FSoftObjectPtr AssetPtr(Manager.GetPrimaryAssetPath(Assets[RandomIndex]));
-	if (AssetPtr.IsPending())
+	//if (Assets.Num() > 0)
 	{
-		AssetPtr.LoadSynchronous();
+		int32 RandomIndex = FMath::RandRange(0, Assets.Num() - 1);
+		FSoftObjectPtr AssetPtr(Manager.GetPrimaryAssetPath(Assets[RandomIndex]));
+		if (AssetPtr.IsPending())
+		{
+			AssetPtr.LoadSynchronous();
+		}
+		Item = Cast<UABItemData>(AssetPtr.Get());
+		ensure(Item);
 	}
-	Item = Cast<UABItemData>(AssetPtr.Get());
-	ensure(Item);
 
 	Trigger->OnComponentBeginOverlap.AddDynamic(this, &AABItemBox::OnVerlapBegin);
 }

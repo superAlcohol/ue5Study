@@ -11,7 +11,8 @@ enum class EITemType : uint8
 {
 	Weapon = 0,
 	Potion,
-	Scroll
+	Scroll,
+	Rifle
 };
 /**
  * 
@@ -26,9 +27,7 @@ public:
 		return FPrimaryAssetId("ABItemData", GetFName());
 	}
 
-
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Type)
 	EITemType Type;
-
 };
