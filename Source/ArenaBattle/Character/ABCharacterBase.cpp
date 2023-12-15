@@ -13,6 +13,7 @@
 #include "UI/ABWidgetComponent.h"
 #include "UI/ABHpBarWidget.h"
 #include "Item/ABItems.h"
+#include <Misc/OutputDeviceNull.h>
 
 DEFINE_LOG_CATEGORY(LogABCharacter);
 
@@ -85,6 +86,13 @@ AABCharacterBase::AABCharacterBase()
 		DeadMontage = DeadMontageRef.Object;
 	}
 
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> RifleShootMontageRef(TEXT("/Script/Engine.AnimMontage'/Game/ArenaBattle/Animation/AM_RifleShoot.AM_RifleShoot'"));
+	if (RifleShootMontageRef.Object)
+	{
+		RifleShootMontage = RifleShootMontageRef.Object;
+	}
+
+
 	// Stat Component
 	Stat = CreateDefaultSubobject<UABCharacterStatComponent>(TEXT("Stat"));
 	// Widget Component
@@ -104,6 +112,8 @@ AABCharacterBase::AABCharacterBase()
 	TakeItemActions.Add(FTakeItemDelegateWrapper(FOnTakeItemDelegate::CreateUObject(this, &AABCharacterBase::EquipWeapon)));
 	TakeItemActions.Add(FTakeItemDelegateWrapper(FOnTakeItemDelegate::CreateUObject(this, &AABCharacterBase::DrinkPotion)));
 	TakeItemActions.Add(FTakeItemDelegateWrapper(FOnTakeItemDelegate::CreateUObject(this, &AABCharacterBase::ReadScroll)));
+	TakeItemActions.Add(FTakeItemDelegateWrapper(FOnTakeItemDelegate::CreateUObject(this, &AABCharacterBase::EquipRifle)));
+	
 
 	// Weaopon Component
 	Weapon = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Weapon"));
@@ -141,26 +151,32 @@ void AABCharacterBase::ProcessComboCommand()
 		return;
 	}
 
-	if (CurrentCombo == 0)
+	if (ItemType == EITemType::Rifle)
 	{
-		ComboActionBegin();
-		return;
-	}
-	// 타이머가 비활성화 , 콤보가 끝났거나 타이밍을 놓쳐서 콤보가 끊긴경우
-	if (false == ComboTimerHandle.IsValid())
-	{
-		HasNextComboCommand = false;
+		RifleAttackCommand();
 	}
 	else
 	{
-		HasNextComboCommand = true;
+		if (CurrentCombo == 0)
+		{
+			ComboActionBegin();
+			return;
+		}
+		// 타이머가 비활성화 , 콤보가 끝났거나 타이밍을 놓쳐서 콤보가 끊긴경우
+		if (false == ComboTimerHandle.IsValid())
+		{
+			HasNextComboCommand = false;
+		}
+		else
+		{
+			HasNextComboCommand = true;
+		}
 	}
+
 }
 
 void AABCharacterBase::ComboActionBegin()
 {
-	// TODO : 점프중일때 콤보가 시작하면 콤보가 끝나고 점프애니매이션되는듯 
-
 	CurrentCombo = 1;
 
 	// 이동기능 제거 후 콤보 구현
@@ -223,6 +239,22 @@ void AABCharacterBase::ComboCheck()
 		SetComboCheckTimer();
 		HasNextComboCommand = false;
 	}
+}
+
+void AABCharacterBase::RifleAttackCommand()
+{
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+
+	FName NextSection = TEXT("RifleFire");
+	if (GetCharacterMovement()->IsWalking())
+	{
+		NextSection = TEXT("RifleFireRun");
+		AnimInstance->Montage_JumpToSection(NextSection, RifleShootMontage);
+	}
+
+	const float AttackSpeedRate = Stat->GetTotalStat().AttackSpeed;
+	// AnimInstance->StopAllMontages(0.0f);
+	AnimInstance->Montage_Play(RifleShootMontage, AttackSpeedRate);
 }
 
 void AABCharacterBase::AttackHitCheck()
@@ -298,6 +330,14 @@ void AABCharacterBase::TakeItem(UABItemData* InItemData)
 {
 	if (InItemData)
 	{
+		// ItemType change
+		ItemType = InItemData->Type;
+
+		// ABP_ABCharacter AnimGraph Event call ChangeWeapon
+		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+		FOutputDeviceNull pAR;
+		AnimInstance->CallFunctionByNameWithArguments(TEXT("ChangeWeapon"), pAR, nullptr, true);
+
 		TakeItemActions[(uint8)InItemData->Type].ItemDelegate.ExecuteIfBound(InItemData);
 	}
 }
@@ -333,6 +373,22 @@ void AABCharacterBase::ReadScroll(UABItemData* InItemData)
 	if (ScrollItemnData)
 	{
 		Stat->AddBaseStat(ScrollItemnData->BaseStat);
+	}
+}
+
+void AABCharacterBase::EquipRifle(UABItemData* InItemData)
+{
+	UABRifleItemData* RifleItemData = Cast< UABRifleItemData>(InItemData);
+	if (RifleItemData)
+	{
+		// 로딩되어있지않으면 
+		if (RifleItemData->WeaponMesh.IsPending())
+		{
+			RifleItemData->WeaponMesh.LoadSynchronous(); // 로딩 시도 
+		}
+
+		Weapon->SetSkeletalMesh(RifleItemData->WeaponMesh.Get());
+		Stat->SetModifierStat(RifleItemData->ModifierStat);
 	}
 }
 

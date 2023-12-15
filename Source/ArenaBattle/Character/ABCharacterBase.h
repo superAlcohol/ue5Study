@@ -8,6 +8,7 @@
 #include "Interface/ABCharacterWidgetInterface.h"
 #include "Interface/ABCharacterItemInterface.h"
 #include "GameData/ABCharacterStat.h"
+#include "Item/ABItemData.h"
 #include "ABCharacterBase.generated.h"
 
 
@@ -63,6 +64,8 @@ protected:
 	void SetComboCheckTimer();
 	void ComboCheck();
 
+	void RifleAttackCommand();
+
 	int32 CurrentCombo = 0;
 	FTimerHandle ComboTimerHandle;
 	bool HasNextComboCommand = false;
@@ -75,6 +78,10 @@ protected:
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Stat, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UAnimMontage> DeadMontage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Stat, Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UAnimMontage> RifleShootMontage;
+	
 
 	virtual void SetDead();
 	void PlayDeadAnimation();
@@ -107,10 +114,16 @@ protected:
 	virtual void DrinkPotion(class UABItemData* InItemData);
 	virtual void EquipWeapon(class UABItemData* InItemData);
 	virtual void ReadScroll(class UABItemData* InItemData);
+	virtual void EquipRifle(class UABItemData* InItemData);
+
+
 
 	// Stat Section
 public:
 	int32 GetLevel();
 	void SetLevel(int32 InNewLevel);
 	void ApplyStat(const FABCharacterStat& BastStat, const FABCharacterStat& ModifierStat);
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Equipment, Meta = (AllowPrivateAccess = "true"))
+	EITemType ItemType;
 };
