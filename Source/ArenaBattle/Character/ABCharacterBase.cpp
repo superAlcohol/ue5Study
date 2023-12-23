@@ -14,8 +14,12 @@
 #include "UI/ABHpBarWidget.h"
 #include "Item/ABItems.h"
 #include <Misc/OutputDeviceNull.h>
+//#include "../Plugins/FX/Niagara/Source/Niagara/Classes/NiagaraSystem.h"
+//#include "../Plugins/FX/Niagara/Source/Niagara/Public/NiagaraFunctionLibrary.h"
+//#include "../Plugins/FX/Niagara/Source/Niagara/Public/NiagaraComponent.h"
 
 DEFINE_LOG_CATEGORY(LogABCharacter);
+
 
 // Sets default values
 AABCharacterBase::AABCharacterBase()
@@ -92,6 +96,11 @@ AABCharacterBase::AABCharacterBase()
 		RifleShootMontage = RifleShootMontageRef.Object;
 	}
 
+	// 나이아가라 C++ 호출 테스트
+	//static ConstructorHelpers::FObjectFinder<UNiagaraSystem> ParticleSystem(TEXT("/Game/ArenaBattle/Effect/NiagaraEffect/NS_bulletEffect.NS_bulletEffect"));
+	//if (ParticleSystem.Succeeded()) {
+	//	BulletEffect = ParticleSystem.Object;
+	//}
 
 	// Stat Component
 	Stat = CreateDefaultSubobject<UABCharacterStatComponent>(TEXT("Stat"));
@@ -151,7 +160,7 @@ void AABCharacterBase::ProcessComboCommand()
 		return;
 	}
 
-	if (ItemType == EITemType::Rifle)
+	if (EquipItemType == EITemType::Rifle)
 	{
 		RifleAttackCommand();
 	}
@@ -245,15 +254,22 @@ void AABCharacterBase::RifleAttackCommand()
 {
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 
-	FName NextSection = TEXT("RifleFire");
+	FName Section = TEXT("RifleFire");
 	if (GetCharacterMovement()->IsWalking())
 	{
-		NextSection = TEXT("RifleFireRun");
-		AnimInstance->Montage_JumpToSection(NextSection, RifleShootMontage);
+		Section = TEXT("RifleFireRun");
+		AnimInstance->Montage_JumpToSection(Section, RifleShootMontage);
+	}
+	else
+	{
+		Section = TEXT("RifleFire");
+		AnimInstance->Montage_JumpToSection(Section, RifleShootMontage);
+		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
 	}
 
+	UE_LOG(LogABCharacter, Log, TEXT("Shooting : %s"), Section);
+
 	const float AttackSpeedRate = Stat->GetTotalStat().AttackSpeed;
-	// AnimInstance->StopAllMontages(0.0f);
 	AnimInstance->Montage_Play(RifleShootMontage, AttackSpeedRate);
 }
 
@@ -266,26 +282,57 @@ void AABCharacterBase::AttackHitCheck()
 	const float AttackRange = Stat->GetTotalStat().AttackRange;
 	const float AttackRadius = Stat->GetAttackRadius();
 	const float AttackDamage = Stat->GetTotalStat().Attack;
-	const FVector Start = GetActorLocation() + GetActorForwardVector() * GetCapsuleComponent()->GetScaledCapsuleRadius();
-	const FVector End = Start + GetActorForwardVector() * AttackRange;
+	FVector Start;
+	FVector End;
+	bool HitDetected = false;
 
-	bool HitDetected = GetWorld()->SweepSingleByChannel(OutHitResult, Start, End, FQuat::Identity, CCHANNEL_ABACTION, FCollisionShape::MakeSphere(AttackRadius), Params);
+	if (EquipItemType == EITemType::Weapon)
+	{
+		Start = GetActorLocation() + GetActorForwardVector() * GetCapsuleComponent()->GetScaledCapsuleRadius();
+		End = Start + GetActorForwardVector() * AttackRange;
+
+		HitDetected = GetWorld()->SweepSingleByChannel(OutHitResult, Start, End, FQuat::Identity, CCHANNEL_ABACTION, FCollisionShape::MakeSphere(AttackRadius), Params);
+		
+		FVector CapsuleOrigin = Start + (End - Start) * 0.5f;
+		float CapsuleHalfHeight = AttackRange * 0.5f;
+		FColor DrawColor = HitDetected ? FColor::Green : FColor::Red;
+
+#if ENABLE_DRAW_DEBUG
+		DrawDebugCapsule(GetWorld(), CapsuleOrigin, CapsuleHalfHeight, AttackRadius,
+			FRotationMatrix::MakeFromZ(GetActorForwardVector()).ToQuat(), DrawColor, false, 5.0f);
+#endif
+	}
+	else
+	{
+		//	//FHitResult OutHitResult;
+		//	//// SCENE_QUERY_STAT(Attack) Attack 테그, false 복잡한 충돌처리할지, 충돌 제외할오브젝트 this(나자신)
+		//	//FCollisionQueryParams Params(SCENE_QUERY_STAT(Attack), false, this);
+		// 
+		//	//const float AttackRange = Stat->GetTotalStat().AttackRange;
+		//	//const float AttackRadius = Stat->GetAttackRadius();
+		//	//const float AttackDamage = Stat->GetTotalStat().Attack;
+		//	//FVector Start;
+		//	//FVector End;
+		//	//bool HitDetected = false;
+		//	//K2_OnShootingBullet(OutHitResult.GetActor());
+
+		// 나이아가라 C++ 호출 테스트
+		//if (BulletEffect)
+		//{
+		//	// This spawns the chosen effect on the owning WeaponMuzzle SceneComponent
+		//	UNiagaraComponent* NiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(BulletEffect, Weapon, NAME_None, Start, FRotator(0), EAttachLocation::Type::KeepRelativeOffset, true, true, ENCPoolMethod::None, true);
+		//	// Parameters can be set like this (see documentation for further info) - the names and type must match the user exposed parameter in the Niagara System
+		//	NiagaraComponent->SetNiagaraVariableVec3(FString("BulletEnd"), End);
+		//}
+	}
+
 	if (HitDetected)
 	{
 		FDamageEvent DamageEvent;
 		OutHitResult.GetActor()->TakeDamage(AttackDamage, DamageEvent, GetController(), this);
 	}
 
-#if ENABLE_DRAW_DEBUG
-
-	FVector CapsuleOrigin = Start + (End - Start) * 0.5f;
-	float CapsuleHalfHeight = AttackRange * 0.5f;
-	FColor DrawColor = HitDetected ? FColor::Green : FColor::Red;
-
-	DrawDebugCapsule(GetWorld(), CapsuleOrigin, CapsuleHalfHeight, AttackRadius,
-		FRotationMatrix::MakeFromZ(GetActorForwardVector()).ToQuat(), DrawColor, false, 5.0f);
-
-#endif
+	UE_LOG(LogABCharacter, Log, TEXT("HitDetected is %d"), HitDetected);
 }
 
 float AABCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
@@ -303,7 +350,6 @@ void AABCharacterBase::SetDead()
 	PlayDeadAnimation();
 	SetActorEnableCollision(false);
 	HpBar->SetHiddenInGame(true);	//  UI 숨김
-
 }
 
 void AABCharacterBase::PlayDeadAnimation()
@@ -330,14 +376,6 @@ void AABCharacterBase::TakeItem(UABItemData* InItemData)
 {
 	if (InItemData)
 	{
-		// ItemType change
-		ItemType = InItemData->Type;
-
-		// ABP_ABCharacter AnimGraph Event call ChangeWeapon
-		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-		FOutputDeviceNull pAR;
-		AnimInstance->CallFunctionByNameWithArguments(TEXT("ChangeWeapon"), pAR, nullptr, true);
-
 		TakeItemActions[(uint8)InItemData->Type].ItemDelegate.ExecuteIfBound(InItemData);
 	}
 }
@@ -356,6 +394,13 @@ void AABCharacterBase::EquipWeapon(UABItemData* InItemData)
 	UABWeaponItemData* WepoonItemData = Cast< UABWeaponItemData>(InItemData);
 	if (WepoonItemData)
 	{
+		// ItemType change
+		EquipItemType = InItemData->Type;
+		// ABP_ABCharacter AnimGraph Event call ChangeWeapon
+		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+		FOutputDeviceNull pAR;
+		AnimInstance->CallFunctionByNameWithArguments(TEXT("ChangeWeapon"), pAR, nullptr, true);
+
 		// 로딩되어있지않으면 
 		if (WepoonItemData->WeaponMesh.IsPending())
 		{
@@ -381,6 +426,13 @@ void AABCharacterBase::EquipRifle(UABItemData* InItemData)
 	UABRifleItemData* RifleItemData = Cast< UABRifleItemData>(InItemData);
 	if (RifleItemData)
 	{
+		// ItemType change
+		EquipItemType = InItemData->Type;
+		// ABP_ABCharacter AnimGraph Event call ChangeWeapon
+		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+		FOutputDeviceNull pAR;
+		AnimInstance->CallFunctionByNameWithArguments(TEXT("ChangeWeapon"), pAR, nullptr, true);
+
 		// 로딩되어있지않으면 
 		if (RifleItemData->WeaponMesh.IsPending())
 		{
@@ -406,5 +458,6 @@ void AABCharacterBase::ApplyStat(const FABCharacterStat& BastStat, const FABChar
 {
 	float MovementSpeed = (BastStat + ModifierStat).MovementSpeed;
 	GetCharacterMovement()->MaxWalkSpeed = MovementSpeed;
-}
 
+
+}

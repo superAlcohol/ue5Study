@@ -11,6 +11,7 @@
 #include "Item/ABItemData.h"
 #include "ABCharacterBase.generated.h"
 
+class UNiagaraSystem;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogABCharacter, Log, All);
 
@@ -44,7 +45,6 @@ public:
 protected:
 	virtual void SetCharacterControlData(const class UABCharacterControlData* CharacterControlData);
 
-
 	UPROPERTY(EditAnywhere, Category = CharacterControl, Meta = (AllowPrivateAccess = "true"))
 	TMap<ECharacterControlType, class UABCharacterControlData*> CharacterControlManager;
 
@@ -72,6 +72,7 @@ protected:
 
 protected:
 	virtual void AttackHitCheck() override;
+
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 
 	//dead section
@@ -81,13 +82,11 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Stat, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UAnimMontage> RifleShootMontage;
-	
 
 	virtual void SetDead();
 	void PlayDeadAnimation();
 
 	float DeadEventDelayTime = 5.0f;
-
 protected:
 	//stat section
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Stat, Meta = (AllowPrivateAccess = "true"))
@@ -105,18 +104,14 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Equipment, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class USkeletalMeshComponent> Weapon;
 
-
 	UPROPERTY()
 	TArray< FTakeItemDelegateWrapper> TakeItemActions;
-
 
 	virtual void TakeItem(class UABItemData* InItemData);
 	virtual void DrinkPotion(class UABItemData* InItemData);
 	virtual void EquipWeapon(class UABItemData* InItemData);
 	virtual void ReadScroll(class UABItemData* InItemData);
 	virtual void EquipRifle(class UABItemData* InItemData);
-
-
 
 	// Stat Section
 public:
@@ -125,5 +120,17 @@ public:
 	void ApplyStat(const FABCharacterStat& BastStat, const FABCharacterStat& ModifierStat);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Equipment, Meta = (AllowPrivateAccess = "true"))
-	EITemType ItemType;
+	EITemType EquipItemType;
+	
+public:
+	UFUNCTION(BlueprintImplementableEvent, Category = Game, Meta = (DisplayName = "OnShootingBulletCpp"))
+	void K2_OnShootingBullet(const AActor* TargetActor);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = Game, Meta = (DisplayName = "OnTestCallCpp"))
+	void K2_OnTestCall();
+
+//protected:
+// 	// niaagra C++ Call Test
+//	UPROPERTY(EditAnywhere, Category = "Bullet")
+//	TObjectPtr<class UNiagaraSystem> BulletEffect;
 };
