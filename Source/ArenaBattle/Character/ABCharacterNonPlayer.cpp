@@ -69,7 +69,7 @@ float AABCharacterNonPlayer::GetAIDetectRange()
 
 float AABCharacterNonPlayer::GetAIAttackRange()
 {
-	return Stat->GetTotalStat().AttackRange + Stat->GetAttackRadius() * 2;
+	return CharcterStat->GetTotalStat().AttackRange + CharcterStat->GetAttackRadius() * 2;
 }
 
 float AABCharacterNonPlayer::GetAITurnSpeed()

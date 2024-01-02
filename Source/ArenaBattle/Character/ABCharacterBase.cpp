@@ -1,19 +1,20 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
+#include "Character/ABCharacterBase.h" // Corresponding header file alawy first
 
-#include "Character/ABCharacterBase.h"
-#include "Components/CapsuleComponent.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "ABCharacterControlData.h"
-#include "Animation/AnimMontage.h"
 #include "ABComboActionData.h"
-#include "Physics/ABCollision.h"
-#include "Engine/DamageEvents.h"
+#include "Animation/AnimMontage.h"
 #include "CharacterStat/ABCharacterStatComponent.h"
-#include "UI/ABWidgetComponent.h"
-#include "UI/ABHpBarWidget.h"
+#include "Components/CapsuleComponent.h"
+#include "Engine/DamageEvents.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Item/ABItems.h"
+#include "UI/ABHpBarWidget.h"
+#include "Physics/ABCollision.h"
+#include "UI/ABWidgetComponent.h"
 #include <Misc/OutputDeviceNull.h>
+#include "Projectile/ABProjectileBase.h"
 //#include "../Plugins/FX/Niagara/Source/Niagara/Classes/NiagaraSystem.h"
 //#include "../Plugins/FX/Niagara/Source/Niagara/Public/NiagaraFunctionLibrary.h"
 //#include "../Plugins/FX/Niagara/Source/Niagara/Public/NiagaraComponent.h"
@@ -45,8 +46,7 @@ AABCharacterBase::AABCharacterBase()
 
 	GetMesh()->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, -100.0f), FRotator(0.0f, -90.0f, 0.0f));
 	GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
-	GetMesh()->SetCollisionProfileName(TEXT("NoCollision"));
-
+	
 	static ConstructorHelpers::FObjectFinder<USkeletalMesh> CharacterMeshRef(TEXT("/Script/Engine.SkeletalMesh'/Game/InfinityBladeWarriors/Character/CompleteCharacters/SK_CharM_Cardboard.SK_CharM_Cardboard'"));
 	if (CharacterMeshRef.Object)
 	{
@@ -70,6 +70,11 @@ AABCharacterBase::AABCharacterBase()
 	if (QuaterDataRef.Object)
 	{
 		CharacterControlManager.Add(ECharacterControlType::Quater, QuaterDataRef.Object);
+	}
+	static ConstructorHelpers::FObjectFinder<UABCharacterControlData> FpsDataRef(TEXT("/Script/ArenaBattle.ABCharacterControlData'/Game/ArenaBattle/CharacterControl/ABC_Fps.ABC_Fps'"));
+	if (FpsDataRef.Object)
+	{
+		CharacterControlManager.Add(ECharacterControlType::Fps, FpsDataRef.Object);
 	}
 
 	static ConstructorHelpers::FObjectFinder<UAnimMontage> ComboActionMontageRef(TEXT("/Script/Engine.AnimMontage'/Game/ArenaBattle/Animation/AM_ComboAttack.AM_ComboAttack'"));
@@ -103,7 +108,7 @@ AABCharacterBase::AABCharacterBase()
 	//}
 
 	// Stat Component
-	Stat = CreateDefaultSubobject<UABCharacterStatComponent>(TEXT("Stat"));
+	CharcterStat = CreateDefaultSubobject<UABCharacterStatComponent>(TEXT("Stat"));
 	// Widget Component
 	HpBar = CreateDefaultSubobject<UABWidgetComponent>(TEXT("Widget"));
 	HpBar->SetupAttachment(GetMesh());
@@ -127,6 +132,24 @@ AABCharacterBase::AABCharacterBase()
 	// Weaopon Component
 	Weapon = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Weapon"));
 	Weapon->SetupAttachment(GetMesh(), TEXT("hand_rSocket"));
+	Weapon->SetCollisionProfileName(TEXT("NoCollision"));
+	
+	MuzzleOffset = FVector(100.0f, 0.0f, 0.0f);
+	// Blueprint - BP_Bullet 
+	// static ConstructorHelpers::FObjectFinder<UBlueprint> blueprint_finder(TEXT("/Script/Engine.Blueprint'/Game/ArenaBattle/Blueprint/Bullet/BP_Bullet.BP_Bullet'"));
+	// C++ - AABProjectileBase
+	static ConstructorHelpers::FObjectFinder<UBlueprint> blueprint_finder(TEXT("/Script/Engine.Blueprint'/Game/ArenaBattle/Blueprint/Bullet/BP_BulletCpp.BP_BulletCpp'"));
+   	if (blueprint_finder.Object)
+	{   
+		BulletBP = blueprint_finder.Object->GeneratedClass;
+	}
+
+	//static ConstructorHelpers::FObjectFinder<UBlueprint> blueprint_projectile(TEXT("/Script/Engine.Blueprint'/Game/ArenaBattle/Blueprint/Bullet/BP_BulletCpp.BP_BulletCpp'"));
+	//if (blueprint_projectile.Object)
+	//{
+	//	ProjectileClass = blueprint_projectile.Object->GeneratedClass;
+	//}
+
 }
 
 void AABCharacterBase::PostInitializeComponents()
@@ -135,8 +158,8 @@ void AABCharacterBase::PostInitializeComponents()
 	Super::PostInitializeComponents();
 
 	// 죽는 모션 델리게이트 등록
-	Stat->OnHpZero.AddUObject(this, &AABCharacterBase::SetDead);
-	Stat->OnStatChanged.AddUObject(this, &AABCharacterBase::ApplyStat);
+	CharcterStat->OnHpZero.AddUObject(this, &AABCharacterBase::SetDead);
+	CharcterStat->OnStatChanged.AddUObject(this, &AABCharacterBase::ApplyStat);
 
 }
 
@@ -162,7 +185,7 @@ void AABCharacterBase::ProcessComboCommand()
 
 	if (EquipItemType == EITemType::Rifle)
 	{
-		RifleAttackCommand();
+		FireAction();
 	}
 	else
 	{
@@ -192,7 +215,7 @@ void AABCharacterBase::ComboActionBegin()
 	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
 
 	// Animatiuon Setting
-	const float AttackSpeedRate = Stat->GetTotalStat().AttackSpeed;
+	const float AttackSpeedRate = CharcterStat->GetTotalStat().AttackSpeed;
 
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 	AnimInstance->Montage_Play(ComboActionMontage, AttackSpeedRate);
@@ -225,7 +248,7 @@ void AABCharacterBase::SetComboCheckTimer()
 	int32 ConboIndex = CurrentCombo - 1;
 	ensure(ComboActionData->EffectiveFrameCount.IsValidIndex(ConboIndex));
 
-	const float AttackSpeedRate = Stat->GetTotalStat().AttackSpeed;
+	const float AttackSpeedRate = CharcterStat->GetTotalStat().AttackSpeed;
 	float ComboEffeciveTime = (ComboActionData->EffectiveFrameCount[ConboIndex] / ComboActionData->FrameRate) / AttackSpeedRate;
 	if (ComboEffeciveTime > 0.0f)
 	{
@@ -250,72 +273,48 @@ void AABCharacterBase::ComboCheck()
 	}
 }
 
-void AABCharacterBase::RifleAttackCommand()
-{
-	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-
-	FName Section = TEXT("RifleFire");
-	if (GetCharacterMovement()->IsWalking())
-	{
-		Section = TEXT("RifleFireRun");
-		AnimInstance->Montage_JumpToSection(Section, RifleShootMontage);
-	}
-	else
-	{
-		Section = TEXT("RifleFire");
-		AnimInstance->Montage_JumpToSection(Section, RifleShootMontage);
-		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
-	}
-
-	UE_LOG(LogABCharacter, Log, TEXT("Shooting : %s"), Section);
-
-	const float AttackSpeedRate = Stat->GetTotalStat().AttackSpeed;
-	AnimInstance->Montage_Play(RifleShootMontage, AttackSpeedRate);
-}
-
 void AABCharacterBase::AttackHitCheck()
 {
 	FHitResult OutHitResult;
 	// SCENE_QUERY_STAT(Attack) Attack 테그, false 복잡한 충돌처리할지, 충돌 제외할오브젝트 this(나자신)
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(Attack), false, this);
 
-	const float AttackRange = Stat->GetTotalStat().AttackRange;
-	const float AttackRadius = Stat->GetAttackRadius();
-	const float AttackDamage = Stat->GetTotalStat().Attack;
+	const float AttackRange = CharcterStat->GetTotalStat().AttackRange;
+	const float AttackRadius = CharcterStat->GetAttackRadius();
+	const float AttackDamage = CharcterStat->GetTotalStat().Attack;
 	FVector Start;
 	FVector End;
 	bool HitDetected = false;
 
 	if (EquipItemType == EITemType::Weapon)
 	{
+		// 액션과 동시에 캡슐 충돌처리  
 		Start = GetActorLocation() + GetActorForwardVector() * GetCapsuleComponent()->GetScaledCapsuleRadius();
 		End = Start + GetActorForwardVector() * AttackRange;
-
 		HitDetected = GetWorld()->SweepSingleByChannel(OutHitResult, Start, End, FQuat::Identity, CCHANNEL_ABACTION, FCollisionShape::MakeSphere(AttackRadius), Params);
-		
+
+
+		if (HitDetected)
+		{
+			FDamageEvent DamageEvent;
+			OutHitResult.GetActor()->TakeDamage(AttackDamage, DamageEvent, GetController(), this);
+		}
+
+		UE_LOG(LogABCharacter, Log, TEXT("HitDetected is %d"), HitDetected);
+
+
+#if ENABLE_DRAW_DEBUG
 		FVector CapsuleOrigin = Start + (End - Start) * 0.5f;
 		float CapsuleHalfHeight = AttackRange * 0.5f;
 		FColor DrawColor = HitDetected ? FColor::Green : FColor::Red;
 
-#if ENABLE_DRAW_DEBUG
 		DrawDebugCapsule(GetWorld(), CapsuleOrigin, CapsuleHalfHeight, AttackRadius,
 			FRotationMatrix::MakeFromZ(GetActorForwardVector()).ToQuat(), DrawColor, false, 5.0f);
 #endif
 	}
 	else
 	{
-		//	//FHitResult OutHitResult;
-		//	//// SCENE_QUERY_STAT(Attack) Attack 테그, false 복잡한 충돌처리할지, 충돌 제외할오브젝트 this(나자신)
-		//	//FCollisionQueryParams Params(SCENE_QUERY_STAT(Attack), false, this);
-		// 
-		//	//const float AttackRange = Stat->GetTotalStat().AttackRange;
-		//	//const float AttackRadius = Stat->GetAttackRadius();
-		//	//const float AttackDamage = Stat->GetTotalStat().Attack;
-		//	//FVector Start;
-		//	//FVector End;
-		//	//bool HitDetected = false;
-		//	//K2_OnShootingBullet(OutHitResult.GetActor());
-
+		Fire();
 		// 나이아가라 C++ 호출 테스트
 		//if (BulletEffect)
 		//{
@@ -325,30 +324,22 @@ void AABCharacterBase::AttackHitCheck()
 		//	NiagaraComponent->SetNiagaraVariableVec3(FString("BulletEnd"), End);
 		//}
 	}
-
-	if (HitDetected)
-	{
-		FDamageEvent DamageEvent;
-		OutHitResult.GetActor()->TakeDamage(AttackDamage, DamageEvent, GetController(), this);
-	}
-
-	UE_LOG(LogABCharacter, Log, TEXT("HitDetected is %d"), HitDetected);
 }
 
 float AABCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
-	Stat->ApplyDamage(DamageAmount);
+	CharcterStat->ApplyDamage(DamageAmount);
 
 	return DamageAmount;
 }
 
 void AABCharacterBase::SetDead()
 {
-	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
-	PlayDeadAnimation();
-	SetActorEnableCollision(false);
+	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None); // 움직임 중지
+	PlayDeadAnimation();			//  죽는 애니메이션 추가
+	SetActorEnableCollision(false); // 충돌기능 제거
 	HpBar->SetHiddenInGame(true);	//  UI 숨김
 }
 
@@ -365,10 +356,10 @@ void AABCharacterBase::SetupCharacterWidget(UABUserWidget* InUserWidget)
 	UABHpBarWidget* HpBarWidget = Cast<UABHpBarWidget>(InUserWidget);
 	if(HpBarWidget)
 	{
-		HpBarWidget->UpdateStat(Stat->GetBaseStat(), Stat->GetModifierStat());
-		HpBarWidget->UpdateHpBar(Stat->GetCurrentHp());
-		Stat->OnHpChanged.AddUObject(HpBarWidget, &UABHpBarWidget::UpdateHpBar);
-		Stat->OnStatChanged.AddUObject(HpBarWidget, &UABHpBarWidget::UpdateStat);
+		HpBarWidget->UpdateStat(CharcterStat->GetBaseStat(), CharcterStat->GetModifierStat());
+		HpBarWidget->UpdateHpBar(CharcterStat->GetCurrentHp());
+		CharcterStat->OnHpChanged.AddUObject(HpBarWidget, &UABHpBarWidget::UpdateHpBar);
+		CharcterStat->OnStatChanged.AddUObject(HpBarWidget, &UABHpBarWidget::UpdateStat);
 	}
 }
 
@@ -385,7 +376,7 @@ void AABCharacterBase::DrinkPotion(UABItemData* InItemData)
 	UABPotionItemData* PotionItemnData = Cast<UABPotionItemData>(InItemData);
 	if (PotionItemnData)
 	{
-		Stat->HealHep(PotionItemnData->HealAmount);
+		CharcterStat->HealHep(PotionItemnData->HealAmount);
 	}
 }
 
@@ -408,7 +399,7 @@ void AABCharacterBase::EquipWeapon(UABItemData* InItemData)
 		}
 
 		Weapon->SetSkeletalMesh(WepoonItemData->WeaponMesh.Get());
-		Stat->SetModifierStat(WepoonItemData->ModifierStat);
+		CharcterStat->SetModifierStat(WepoonItemData->ModifierStat);
 	}
 }
 
@@ -417,7 +408,7 @@ void AABCharacterBase::ReadScroll(UABItemData* InItemData)
 	UABScrollItemData* ScrollItemnData = Cast<UABScrollItemData>(InItemData);
 	if (ScrollItemnData)
 	{
-		Stat->AddBaseStat(ScrollItemnData->BaseStat);
+		CharcterStat->AddBaseStat(ScrollItemnData->BaseStat);
 	}
 }
 
@@ -440,24 +431,81 @@ void AABCharacterBase::EquipRifle(UABItemData* InItemData)
 		}
 
 		Weapon->SetSkeletalMesh(RifleItemData->WeaponMesh.Get());
-		Stat->SetModifierStat(RifleItemData->ModifierStat);
+		CharcterStat->SetModifierStat(RifleItemData->ModifierStat);
 	}
 }
 
 int32 AABCharacterBase::GetLevel()
 {
-	return Stat->GetCurrentLevel();
+	return CharcterStat->GetCurrentLevel();
 }
 
 void AABCharacterBase::SetLevel(int32 InNewLevel)
 {
-	Stat->SetLevelStat(InNewLevel);
+	CharcterStat->SetLevelStat(InNewLevel);
 }
 
 void AABCharacterBase::ApplyStat(const FABCharacterStat& BastStat, const FABCharacterStat& ModifierStat)
 {
 	float MovementSpeed = (BastStat + ModifierStat).MovementSpeed;
 	GetCharacterMovement()->MaxWalkSpeed = MovementSpeed;
+}
 
+bool AABCharacterBase::isHitActor(bool InIsHit)
+{
+	return InIsHit;
+}
 
+void AABCharacterBase::Fire()
+{
+	if (GetController() == nullptr)
+	{
+		return;
+	}
+
+	// Try and fire a projectile
+	UWorld* const World = GetWorld();
+	if (BulletBP != nullptr && World != nullptr)
+	{
+		APlayerController* PlayerController = Cast<APlayerController>(GetController());
+		const FRotator SpawnRotation = PlayerController->PlayerCameraManager->GetCameraRotation();
+
+		FVector Start; // Weapon.Get()->GetForwardVector() * GetCapsuleComponent()->GetScaledCapsuleRadius()
+		Start = Weapon.Get()->GetSocketLocation("FireSocket");
+		// GetActorForwardVector() * GetCapsuleComponent()->GetScaledCapsuleRadius()
+	
+		const FVector SpawnLocation = Start + SpawnRotation.RotateVector(MuzzleOffset);
+
+		//Set Spawn Collision Handling Override
+		FActorSpawnParameters ActorSpawnParams;
+		ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+
+		// Spawn the projectile at the muzzle
+		World->SpawnActor<AActor>(BulletBP, SpawnLocation, SpawnRotation, ActorSpawnParams);
+	}
+}
+
+void AABCharacterBase::FireAction()
+{
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (nullptr != AnimInstance)
+	{
+		FName Section = TEXT("RifleFire");
+		if (GetCharacterMovement()->IsWalking())
+		{
+			Section = TEXT("RifleFireRun");
+			AnimInstance->Montage_JumpToSection(Section, RifleShootMontage);
+		}
+		else
+		{
+			Section = TEXT("RifleFire");
+			AnimInstance->Montage_JumpToSection(Section, RifleShootMontage);
+			GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
+		}
+
+		UE_LOG(LogABCharacter, Log, TEXT("Fire Bullet : %s"), Section);
+
+		const float AttackSpeedRate = CharcterStat->GetTotalStat().AttackSpeed;
+		AnimInstance->Montage_Play(RifleShootMontage, AttackSpeedRate);
+	}
 }

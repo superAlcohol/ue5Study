@@ -11,7 +11,8 @@
 #include "Item/ABItemData.h"
 #include "ABCharacterBase.generated.h"
 
-class UNiagaraSystem;
+// class UNiagaraSystem;
+class AABProjectileBase;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogABCharacter, Log, All);
 
@@ -19,7 +20,8 @@ UENUM()
 enum class ECharacterControlType : uint8
 {
 	Shoulder,
-	Quater
+	Quater,
+	Fps,
 };
 
 DECLARE_DELEGATE_OneParam(FOnTakeItemDelegate, class UABItemData* /*InItemData*/);
@@ -64,8 +66,6 @@ protected:
 	void SetComboCheckTimer();
 	void ComboCheck();
 
-	void RifleAttackCommand();
-
 	int32 CurrentCombo = 0;
 	FTimerHandle ComboTimerHandle;
 	bool HasNextComboCommand = false;
@@ -90,7 +90,7 @@ protected:
 protected:
 	//stat section
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Stat, Meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<class UABCharacterStatComponent> Stat;
+	TObjectPtr<class UABCharacterStatComponent> CharcterStat;
 
 	// UI Widget Section
 protected:
@@ -122,13 +122,28 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Equipment, Meta = (AllowPrivateAccess = "true"))
 	EITemType EquipItemType;
 	
+
+protected:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
+	FVector MuzzleOffset;
+
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<class AABProjectileBase> BulletBP;
+	// TSubclassOf<class UClass> BulletBP;
+
+	//UPROPERTY(EditDefaultsOnly, Category = Projectile)
+	//TSubclassOf<class AABProjectileBase> ProjectileClass;
 public:
-	UFUNCTION(BlueprintImplementableEvent, Category = Game, Meta = (DisplayName = "OnShootingBulletCpp"))
-	void K2_OnShootingBullet(const AActor* TargetActor);
+	// BlueprintNativeEvent // BlueprintImplementableEvent // BlueprintCallable
+	//UFUNCTION(BlueprintImplementableEvent, Category = Game, Meta = (DisplayName = "OnShootingBulletCpp"))
+	//void OnShootingBullet(const AActor* TargetActor);
 
-	UFUNCTION(BlueprintImplementableEvent, Category = Game, Meta = (DisplayName = "OnTestCallCpp"))
-	void K2_OnTestCall();
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	bool isHitActor(bool InIsHit);
 
+	void Fire();
+
+	void FireAction();
 //protected:
 // 	// niaagra C++ Call Test
 //	UPROPERTY(EditAnywhere, Category = "Bullet")
