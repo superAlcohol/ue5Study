@@ -34,6 +34,8 @@ public:
 protected:
 	void SetCharacterControlData(const UABCharacterControlData* CharacterControlData) override;
 
+	virtual void EquipRifle(class UABItemData* InItemData) override;
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = camera, Meta = (AllowPrivateAccess = "true")) // AllowPrivateAccess  private 변수도 블루푸린트에서 접근가능하도록 지정
 	TObjectPtr<class USpringArmComponent> CameraBoom;
@@ -59,17 +61,19 @@ protected:
 	TObjectPtr<class UInputAction> QuaterMoveAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UInputAction> FpsMoveAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UInputAction> AttackAction;
 
 	void ShoulderMove(const FInputActionValue& Value);
 	void ShoulderLook(const FInputActionValue& Value);
 
 	void QuaterMove(const FInputActionValue& Value);
-
+	void FpsMove(const FInputActionValue& Value);
 	ECharacterControlType CurrentCharacterControlType;
 
 	void Attack();
-
 	// UI Section
 protected:
 	virtual void SetupHUDWidget(class UABHUDWidget* InHUDWidget) override;

@@ -11,6 +11,10 @@
 #include "UI/ABHUDWidget.h"
 #include "CharacterStat/ABCharacterStatComponent.h"
 #include "Interface/ABGameInterface.h"
+#include "Game/ABGameMode.h"
+#include <Misc/OutputDeviceNull.h>
+#include <Physics/ABCollision.h>
+
 
 
 AABCharacterPlayer::AABCharacterPlayer()
@@ -20,11 +24,13 @@ AABCharacterPlayer::AABCharacterPlayer()
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 400.0f;
 	CameraBoom->bUsePawnControlRotation = true;
+	CameraBoom->SetRelativeLocation(FVector(10, 0, 62));
 
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
 
+ 
 	static ConstructorHelpers::FObjectFinder<UInputAction> InputChangeInputControlRef(TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_ChangeControl.IA_ChangeControl'"));
 	if (nullptr != InputChangeInputControlRef.Object)
 	{
@@ -53,6 +59,12 @@ AABCharacterPlayer::AABCharacterPlayer()
 	if (nullptr != InputActionQuaterMoveRef.Object)
 	{
 		QuaterMoveAction = InputActionQuaterMoveRef.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionFpsMoveRef(TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_FpsMove.IA_FpsMove'"));
+	if (nullptr != InputActionFpsMoveRef.Object)
+	{
+		FpsMoveAction = InputActionFpsMoveRef.Object;
 	}
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionAttackRef(TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_Attack.IA_Attack'"));
@@ -86,15 +98,18 @@ void AABCharacterPlayer::SetDead()
 	if (PlayerController)
 	{
 		DisableInput(PlayerController);
-
-		IABGameInterface* ABGameMode = Cast<IABGameInterface>(GetWorld()->GetAuthGameMode());
+		
+		// ABGameModeBs* ABGameMode = Cast<IABGameInterface>(GetWorld()->GetAuthGameMode()); // 왜 케스팅 에러가나는거냐? 잘되다가..
+		AABGameMode* ABGameMode = Cast<AABGameMode>(GetWorld()->GetAuthGameMode());
 		if (ABGameMode)
+		{
+			ABGameMode->OnPlayerDead();
+		}		if (ABGameMode)
 		{
 			ABGameMode->OnPlayerDead();
 		}
 	}
 }
-
 void AABCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
@@ -107,8 +122,10 @@ void AABCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 	EnhancedInputComponent->BindAction(ShoulderMoveAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::ShoulderMove);
 	EnhancedInputComponent->BindAction(ShoulderLookAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::ShoulderLook);
 	EnhancedInputComponent->BindAction(QuaterMoveAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::QuaterMove);
+	EnhancedInputComponent->BindAction(FpsMoveAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::FpsMove);
 	EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::Attack);
 }
+
 
 void AABCharacterPlayer::ChangeCharacterControl()
 {
@@ -117,6 +134,10 @@ void AABCharacterPlayer::ChangeCharacterControl()
 		SetCharacterControl(ECharacterControlType::Shoulder);
 	}
 	else if (CurrentCharacterControlType == ECharacterControlType::Shoulder)
+	{
+		SetCharacterControl(ECharacterControlType::Fps);
+	}
+	else if (CurrentCharacterControlType == ECharacterControlType::Fps)
 	{
 		SetCharacterControl(ECharacterControlType::Quater);
 	}
@@ -156,9 +177,14 @@ void AABCharacterPlayer::SetCharacterControlData(const UABCharacterControlData* 
 	CameraBoom->bInheritYaw = CharacterControlData->bInheritYaw;
 	CameraBoom->bInheritRoll = CharacterControlData->bInheritRoll;
 	CameraBoom->bDoCollisionTest = CharacterControlData->bDoCollisionTest;
-
 }
 
+void AABCharacterPlayer::EquipRifle(UABItemData* InItemData)
+{
+	Super::EquipRifle(InItemData);
+	// change fps move
+	SetCharacterControl(ECharacterControlType::Fps);
+}
 
 void AABCharacterPlayer::ShoulderMove(const FInputActionValue& Value)
 {
@@ -202,8 +228,15 @@ void AABCharacterPlayer::QuaterMove(const FInputActionValue& Value)
 	FVector MoveDirection = FVector(MovementVector.X, MovementVector.Y, 0.0f);
 	GetController()->SetControlRotation(FRotationMatrix::MakeFromX(MoveDirection).Rotator());
 	AddMovementInput(MoveDirection, MovementVectorSize);
+}
 
+void AABCharacterPlayer::FpsMove(const FInputActionValue& Value)
+{
+	FVector2D MovementVector = Value.Get<FVector2D>();
 
+	// add movement 
+	AddMovementInput(GetActorForwardVector(), MovementVector.Y);
+	AddMovementInput(GetActorRightVector(), MovementVector.X);
 }
 
 void AABCharacterPlayer::Attack()
@@ -215,10 +248,10 @@ void AABCharacterPlayer::SetupHUDWidget(UABHUDWidget* InHUDWidget)
 {
 	if (InHUDWidget)
 	{
-		InHUDWidget->UpdateStat(Stat->GetBaseStat(), Stat->GetModifierStat());
-		InHUDWidget->UpdateHpBar(Stat->GetCurrentHp());
+		InHUDWidget->UpdateStat(CharcterStat->GetBaseStat(), CharcterStat->GetModifierStat());
+		InHUDWidget->UpdateHpBar(CharcterStat->GetCurrentHp());
 
-		Stat->OnStatChanged.AddUObject(InHUDWidget, &UABHUDWidget::UpdateStat);
-		Stat->OnHpChanged.AddUObject(InHUDWidget, &UABHUDWidget::UpdateHpBar);
+		CharcterStat->OnStatChanged.AddUObject(InHUDWidget, &UABHUDWidget::UpdateStat);
+		CharcterStat->OnHpChanged.AddUObject(InHUDWidget, &UABHUDWidget::UpdateHpBar);
 	}
 }
