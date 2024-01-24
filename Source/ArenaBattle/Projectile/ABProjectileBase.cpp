@@ -15,7 +15,7 @@ AABProjectileBase::AABProjectileBase()
 {
 	// Use a sphere as a simple collision representation
 	CollisionComp = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComp"));
-	CollisionComp->InitSphereRadius(5.0f);
+	CollisionComp->InitSphereRadius(1.0f);
 	CollisionComp->BodyInstance.SetCollisionProfileName("Projectile");
 	// set up a notification for when this component hits something blocking
 	CollisionComp->OnComponentHit.AddDynamic(this, &AABProjectileBase::OnHit);		
@@ -70,14 +70,15 @@ void AABProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, 
 		// 나이아가라 C++ 호출 테스트
 		if (ImpectEffect)
 		{
-			FVector_NetQuantize ImpectPoint = Hit.ImpactPoint;
+			FVector_NetQuantize ImpectPoint = Hit.ImpactPoint; // 충돌지점
+			//FVector_NetQuantize Location = Hit.Location;
 			// This spawns the chosen effect on the owning WeaponMuzzle SceneComponent
-			UNiagaraComponent* NiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(ImpectEffect, OtherComp, NAME_None, ImpectPoint, FRotator(0), EAttachLocation::Type::KeepRelativeOffset, true, true, ENCPoolMethod::None, true);
+			UNiagaraComponent* NiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(ImpectEffect, OtherComp, NAME_None, ImpectPoint, FRotator(0), EAttachLocation::Type::KeepWorldPosition, true, true, ENCPoolMethod::None, true);
 		}
 
 		UGameplayStatics::PlaySound2D(OtherActor, SoundBase);
 
 		Destroy();
-	}
+	}  
 }
 
