@@ -6,6 +6,9 @@
 #include "Components/SphereComponent.h"
 #include <Player/ABPlayerController.h>
 #include <Kismet/GameplayStatics.h>
+#include "../Plugins/FX/Niagara/Source/Niagara/Classes/NiagaraSystem.h"
+#include "../Plugins/FX/Niagara/Source/Niagara/Public/NiagaraFunctionLibrary.h"
+#include "../Plugins/FX/Niagara/Source/Niagara/Public/NiagaraComponent.h"
 
 // Sets default values
 AABProjectileBase::AABProjectileBase()
@@ -36,6 +39,15 @@ AABProjectileBase::AABProjectileBase()
 	InitialLifeSpan = 3.0f;
 
 	AttackDamage = 30;
+
+	// 나이아가라 C++ 호출 테스트
+	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> ParticleSystem(TEXT("/Script/Niagara.NiagaraSystem'/Game/ArenaBattle/Effect/NiagaraEffect/NS_ImpectEffect.NS_ImpectEffect'"));
+	if (ParticleSystem.Succeeded()) 
+	{
+		ImpectEffect = ParticleSystem.Object;
+	}
+
+	SoundBase = LoadObject<USoundWave>(nullptr, TEXT("/Script/MetasoundEngine.MetaSoundSource'/Game/Sounds/MS_ImpectEffect.MS_ImpectEffect'"));
 }
 
 void AABProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
@@ -53,6 +65,17 @@ void AABProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, 
 		{
 			UGameplayStatics::ApplyDamage(OtherActor, AttackDamage, controller, nullptr, NULL);
 		}
+
+
+		// 나이아가라 C++ 호출 테스트
+		if (ImpectEffect)
+		{
+			FVector_NetQuantize ImpectPoint = Hit.ImpactPoint;
+			// This spawns the chosen effect on the owning WeaponMuzzle SceneComponent
+			UNiagaraComponent* NiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(ImpectEffect, OtherComp, NAME_None, ImpectPoint, FRotator(0), EAttachLocation::Type::KeepRelativeOffset, true, true, ENCPoolMethod::None, true);
+		}
+
+		UGameplayStatics::PlaySound2D(OtherActor, SoundBase);
 
 		Destroy();
 	}

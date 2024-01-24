@@ -34,4 +34,12 @@ public:
 
 	UPROPERTY(VisibleAnywhere, Category = Damage)
 	float AttackDamage;
+
+	//protected:
+ 	// niaagra C++ Call Test
+	UPROPERTY(EditAnywhere, Category = "Bullet")
+	TObjectPtr<class UNiagaraSystem> ImpectEffect;
+
+	UPROPERTY(EditAnywhere, Category = "Sound")
+	TObjectPtr<USoundBase> SoundBase;
 };
