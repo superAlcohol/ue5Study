@@ -183,28 +183,20 @@ void AABCharacterBase::ProcessComboCommand()
 		return;
 	}
 
-	if (EquipItemType == EITemType::Rifle)
+	if (CurrentCombo == 0)
 	{
-		FireAction();
+		ComboActionBegin();
+		return;
+	}
+	// 타이머가 비활성화 , 콤보가 끝났거나 타이밍을 놓쳐서 콤보가 끊긴경우
+	if (false == ComboTimerHandle.IsValid())
+	{
+		HasNextComboCommand = false;
 	}
 	else
 	{
-		if (CurrentCombo == 0)
-		{
-			ComboActionBegin();
-			return;
-		}
-		// 타이머가 비활성화 , 콤보가 끝났거나 타이밍을 놓쳐서 콤보가 끊긴경우
-		if (false == ComboTimerHandle.IsValid())
-		{
-			HasNextComboCommand = false;
-		}
-		else
-		{
-			HasNextComboCommand = true;
-		}
+		HasNextComboCommand = true;
 	}
-
 }
 
 void AABCharacterBase::ComboActionBegin()
@@ -463,6 +455,8 @@ void AABCharacterBase::Fire()
 		return;
 	}
 
+	isFireReady = true;
+
 	// Try and fire a projectile
 	UWorld* const World = GetWorld();
 	if (BulletBP != nullptr && World != nullptr)
@@ -487,6 +481,12 @@ void AABCharacterBase::Fire()
 
 void AABCharacterBase::FireAction()
 {
+	if (isFireReady == false)
+	{
+		return;
+	}
+
+	isFireReady = false;
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 	if (nullptr != AnimInstance)
 	{

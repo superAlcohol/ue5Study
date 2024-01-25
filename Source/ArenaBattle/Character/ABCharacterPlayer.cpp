@@ -73,6 +73,13 @@ AABCharacterPlayer::AABCharacterPlayer()
 		AttackAction = InputActionAttackRef.Object;
 	}
 
+	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionShootRef(TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_Shoot.IA_Shoot'"));
+	if (nullptr != InputActionShootRef.Object)
+	{
+		ShootingAction = InputActionShootRef.Object;
+	}
+
+	
 	CurrentCharacterControlType = ECharacterControlType::Quater;
 	
 }
@@ -124,6 +131,8 @@ void AABCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 	EnhancedInputComponent->BindAction(QuaterMoveAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::QuaterMove);
 	EnhancedInputComponent->BindAction(FpsMoveAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::FpsMove);
 	EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::Attack);
+	EnhancedInputComponent->BindAction(ShootingAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::Shooting);
+	
 }
 
 
@@ -242,6 +251,11 @@ void AABCharacterPlayer::FpsMove(const FInputActionValue& Value)
 void AABCharacterPlayer::Attack()
 {
 	ProcessComboCommand();
+}
+
+void AABCharacterPlayer::Shooting()
+{
+	FireAction();
 }
 
 void AABCharacterPlayer::SetupHUDWidget(UABHUDWidget* InHUDWidget)

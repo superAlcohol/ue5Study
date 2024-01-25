@@ -70,6 +70,7 @@ protected:
 	FTimerHandle ComboTimerHandle;
 	bool HasNextComboCommand = false;
 
+	bool isFireReady = true;
 protected:
 	virtual void AttackHitCheck() override;
 
