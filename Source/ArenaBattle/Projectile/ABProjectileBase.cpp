@@ -24,7 +24,7 @@ AABProjectileBase::AABProjectileBase()
 	CollisionComp->SetWalkableSlopeOverride(FWalkableSlopeOverride(WalkableSlope_Unwalkable, 0.f));
 	CollisionComp->CanCharacterStepUpOn = ECB_No;
 
-	// Set as root component
+	// Set as root component 
 	RootComponent = CollisionComp;
 
 	// Use a ProjectileMovementComponent to govern this projectile's movement
@@ -47,7 +47,11 @@ AABProjectileBase::AABProjectileBase()
 		ImpectEffect = ParticleSystem.Object;
 	}
 
-	SoundBase = LoadObject<USoundWave>(nullptr, TEXT("/Script/MetasoundEngine.MetaSoundSource'/Game/Sounds/MS_ImpectEffect.MS_ImpectEffect'"));
+	static ConstructorHelpers::FObjectFinder<USoundBase> HitSoundAsset(TEXT("/Script/MetasoundEngine.MetaSoundSource'/Game/ArenaBattle/Sounds/MS_ImpectEffect.MS_ImpectEffect'"));
+	if (HitSoundAsset.Succeeded())
+		HitSoundBase = HitSoundAsset.Object;
+
+	// HitSoundBase = LoadObject<USoundWave>(nullptr, TEXT("/Game/Sounds/MS_ImpectEffect.MS_ImpectEffect"));
 }
 
 void AABProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
@@ -76,8 +80,8 @@ void AABProjectileBase::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, 
 			UNiagaraComponent* NiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(ImpectEffect, OtherComp, NAME_None, ImpectPoint, FRotator(0), EAttachLocation::Type::KeepWorldPosition, true, true, ENCPoolMethod::None, true);
 		}
 
-		UGameplayStatics::PlaySound2D(OtherActor, SoundBase);
-
+		// UGameplayStatics::PlaySound2D(OtherActor, HitSoundBase);
+		UGameplayStatics::PlaySoundAtLocation(OtherActor, HitSoundBase, OtherActor->GetActorLocation());
 		Destroy();
 	}  
 }

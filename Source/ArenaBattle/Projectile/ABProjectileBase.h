@@ -40,6 +40,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Bullet")
 	TObjectPtr<class UNiagaraSystem> ImpectEffect;
 
-	UPROPERTY(EditAnywhere, Category = "Sound")
-	TObjectPtr<USoundBase> SoundBase;
+	UPROPERTY(EditAnywhere, Category = "Fire Sound")
+	TObjectPtr<USoundBase> HitSoundBase;
 };
